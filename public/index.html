@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>YouTube Keyword Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { font-size: 24px; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 10px; }
+    .timestamp { font-size: 12px; color: gray; }
+    input[type="text"] { padding: 5px; font-size: 14px; }
+    button { padding: 5px 10px; margin-left: 5px; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Live YouTube Keyword Tracker</h1>
+
+  <div>
+    <input type="text" id="newKeyword" placeholder="Add keyword...">
+    <button onclick="addKeyword()">Add</button>
+  </div>
+
+  <p><strong>Tracking:</strong> <span id="keywordList">loading...</span></p>
+
+  <ul id="videoList"></ul>
+
+  <script>
+    async function fetchKeywords() {
+      const res = await fetch('/keywords');
+      const data = await res.json();
+      document.getElementById('keywordList').textContent = data.join(', ');
+    }
+
+    async function fetchVideos() {
+      const res = await fetch('/videos');
+      const data = await res.json();
+      const list = document.getElementById('videoList');
+      list.innerHTML = '';
+      data.forEach(video => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <a href="${video.url}" target="_blank">${video.title}</a><br/>
+          <span class="timestamp">${new Date(video.published).toLocaleString()} – ${video.channel} [<em>${video.keyword}</em>]</span>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    async function addKeyword() {
+      const keyword = document.getElementById('newKeyword').value.trim();
+      if (!keyword) return;
+      const res = await fetch('/add-keyword', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword })
+      });
+      const result = await res.json();
+      if (result.success) {
+        document.getElementById('newKeyword').value = '';
+        fetchKeywords();
+      } else {
+        alert(result.message || 'Failed to add keyword.');
+      }
+    }
+
+    fetchKeywords();
+    fetchVideos();
+    setInterval(() => {
+      fetchVideos();
+    }, 15000);
+  </script>
+</body>
+</html>

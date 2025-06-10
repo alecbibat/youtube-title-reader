@@ -70,11 +70,19 @@ async function fetchYouTubeResults(keyword) {
   }
 }
 
-setInterval(() => {
-  for (const keyword of keywords) {
-    fetchYouTubeResults(keyword.trim());
+// ✅ Updated polling loop that always uses the current keyword list
+let polling = true;
+
+async function pollKeywords() {
+  while (polling) {
+    for (const keyword of keywords) {
+      await fetchYouTubeResults(keyword.trim());
+    }
+    await new Promise(resolve => setTimeout(resolve, 30000)); // wait 30 seconds
   }
-}, 30000);
+}
+
+pollKeywords();
 
 app.get('/videos', (req, res) => {
   res.json(recentVideos);

@@ -14,10 +14,13 @@ let lastSeen = {};
 let recentVideos = [];
 
 function loadKeywords() {
-  if (fs.existsSync(KEYWORD_FILE)) {
-    keywords = JSON.parse(fs.readFileSync(KEYWORD_FILE));
-  } else {
-    keywords = ['elden ring', 'openai', 'world news'];
+  try {
+    const data = fs.readFileSync(KEYWORD_FILE);
+    keywords = JSON.parse(data);
+    if (!Array.isArray(keywords)) throw new Error("Not an array");
+  } catch (err) {
+    console.error("Failed to load keywords.json:", err.message);
+    keywords = ['openai', 'world news'];
     saveKeywords();
   }
 }
@@ -65,20 +68,22 @@ async function fetchYouTubeResults(keyword) {
     }
 
     recentVideos = [...newVideos, ...recentVideos].slice(0, 50);
+    console.log(`✅ Fetched ${newVideos.length} new video(s) for "${keyword}"`);
   } catch (err) {
-    console.error(`Error fetching videos for "${keyword}":`, err.response?.data || err.message);
+    console.error(`❌ Error fetching for "${keyword}":`, err.response?.data || err.message);
   }
 }
 
-// ✅ Updated polling loop that always uses the current keyword list
+// ✅ Poll every 101 minutes to stay under quota for 7 keywords
 let polling = true;
 
 async function pollKeywords() {
   while (polling) {
     for (const keyword of keywords) {
+      console.log("Polling:", keyword);
       await fetchYouTubeResults(keyword.trim());
     }
-    await new Promise(resolve => setTimeout(resolve, 30000)); // wait 30 seconds
+    await new Promise(resolve => setTimeout(resolve, 101 * 60 * 1000)); // 101 minutes
   }
 }
 
@@ -94,13 +99,16 @@ app.get('/keywords', (req, res) => {
 
 app.post('/add-keyword', (req, res) => {
   const newKeyword = req.body.keyword?.trim();
-  if (newKeyword && !keywords.includes(newKeyword)) {
-    keywords.push(newKeyword);
-    saveKeywords();
-    res.json({ success: true, keywords });
-  } else {
-    res.status(400).json({ success: false, message: 'Invalid or duplicate keyword.' });
+  if (!newKeyword || keywords.includes(newKeyword)) {
+    return res.status(400).json({ success: false, message: 'Invalid or duplicate keyword.' });
   }
+  if (keywords.length >= 7) {
+    return res.status(400).json({ success: false, message: 'Max keyword limit reached (7).' });
+  }
+
+  keywords.push(newKeyword);
+  saveKeywords();
+  res.json({ success: true, keywords });
 });
 
 app.delete('/delete-keyword', (req, res) => {
